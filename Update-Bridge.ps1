@@ -1,3 +1,36 @@
+# Update-Bridge.ps1
+# One-command updater for the Kali Wireless Bridge with automatic device inventory push
+#
+# Usage (run in PowerShell as Administrator):
+#   irm https://raw.githubusercontent.com/deekaykay07-hub/kali-wireless-bridge/main/Update-Bridge.ps1 | iex
+#
+# Or save this file and run:
+#   .\Update-Bridge.ps1
+
+$ErrorActionPreference = "Stop"
+
+Write-Host "=== Kali Wireless Bridge Updater ===" -ForegroundColor Cyan
+Write-Host "This will build the latest bridge with automatic hardware inventory push.`n"
+
+# Create working directory
+$workDir = "$env:TEMP\kali-bridge-update"
+if (Test-Path $workDir) { Remove-Item $workDir -Recurse -Force }
+New-Item -ItemType Directory -Path $workDir | Out-Null
+Set-Location $workDir
+
+Write-Host "[1/4] Downloading updated bridge source..." -ForegroundColor Yellow
+
+# Create go.mod
+@'
+module github.com/yourusername/kali-wireless-bridge
+
+go 1.21
+
+require github.com/gorilla/websocket v1.5.3
+'@ | Out-File -FilePath "go.mod" -Encoding UTF8
+
+# Write the full updated bridge (with automatic device inventory)
+@'
 package main
 
 import (
@@ -162,4 +195,27 @@ func runCommand(conn *websocket.Conn, command string) {
 	}
 	data, _ = json.Marshal(resultMsg)
 	conn.WriteMessage(websocket.TextMessage, data)
+}
+'@ | Out-File -FilePath "main.go" -Encoding UTF8
+
+Write-Host "[2/4] Downloading dependencies..." -ForegroundColor Yellow
+go mod tidy
+
+Write-Host "[3/4] Building updated bridge (with automatic device inventory)..." -ForegroundColor Yellow
+go build -o kali-bridge-new.exe .
+
+if (Test-Path "kali-bridge-new.exe") {
+    $target = "$PWD\kali-bridge-new.exe"
+    Write-Host "`n[4/4] SUCCESS!" -ForegroundColor Green
+    Write-Host "New bridge built: $target" -ForegroundColor Green
+    Write-Host ""
+    Write-Host "Next steps:" -ForegroundColor Cyan
+    Write-Host "1. Stop your current bridge (if running)"
+    Write-Host "2. Copy or rename kali-bridge-new.exe to your usual location"
+    Write-Host "3. Run it with your new token:"
+    Write-Host "   .\kali-bridge-new.exe --connect 188.166.150.41:8765 --token YOUR_TOKEN"
+    Write-Host ""
+    Write-Host "The bridge will now automatically send your real WiFi and Bluetooth device list to the model when it connects." -ForegroundColor Green
+} else {
+    Write-Host "Build failed. Please make sure Go is installed and try again." -ForegroundColor Red
 }
