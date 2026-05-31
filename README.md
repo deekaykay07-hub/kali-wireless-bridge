@@ -1,4 +1,4 @@
-# kali-wireless-bridge
+# kali-wireless-bridge (WINDOWS)
 
 **Local Hardware Bridge** for the [Kali Wireless Expert TUI](https://github.com/deekaykay07-hub/kali-mistral-tui).
 
