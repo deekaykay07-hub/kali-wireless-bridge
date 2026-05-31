@@ -1,78 +1,65 @@
-# Architecture Overview
+# Architecture & Flow (Clear Diagrams)
 
-This document explains how the **Kali Wireless Bridge** system is designed to work.
+## 1. High-Level Architecture
 
-## Core Philosophy
+```mermaid
+graph TD
+    User[User in Browser] -->|Chat| TUI[TUI + LLM<br/>Remote on VPS]
+    TUI -->|WebSocket| Bridge[Local Bridge Agent<br/>On Your Laptop]
+    Bridge -->|Executes| Hardware[Your WiFi / Bluetooth / NFC Hardware]
+    Hardware -->|Real Output| Bridge
+    Bridge -->|Streams Results| TUI
+    TUI -->|Shows Results| User
+```
 
-- The **intelligence** (LLM + planning) lives remotely on your VPS.
-- The **execution** (especially anything requiring real wireless hardware) happens locally on your machine.
-- The bridge is a thin, secure agent that only does what the remote AI tells it to.
+**Key Point**: The AI brain is remote. Only the hardware execution is local.
 
-## Components
+## 2. Detailed User Flow
 
-### 1. Remote TUI (kali-mistral-tui)
+```mermaid
+sequenceDiagram
+    participant U as You (Browser)
+    participant T as Remote TUI + AI (VPS)
+    participant B as Local Bridge (Your Laptop)
+    participant H as Your Hardware
 
-- Runs in Docker on your VPS.
-- Contains the LLM (via Ollama) + the Textual TUI.
-- This is where you interact with the AI.
-- It decides when a task needs local hardware.
-- It will (in the future) expose a WebSocket endpoint for bridges to connect to.
+    U->>T: "Scan for networks with monitor mode"
+    T->>T: AI makes plan
+    Note over T: Plan requires local hardware
+    T->>B: Send command: "airmon-ng start wlan0"
+    B->>H: Execute on local machine
+    H-->>B: Output (interfaces, errors...)
+    B-->>T: Stream output in real time
+    T->>U: Show results in chat
+    U->>T: "Now scan for networks"
+    T->>B: Send: "airodump-ng ..."
+    B->>H: Run scan
+    H-->>B: Scan results
+    B-->>T: Stream results
+    T->>U: Present networks
+```
 
-### 2. Local Bridge (this repo)
+## 3. Text Version of the Flow
 
-- A small Go binary you run on your laptop.
-- Connects **outbound** to the remote TUI (firewall friendly).
-- Advertises what hardware/capabilities it has.
-- Receives commands from the remote AI.
-- Executes them locally and streams results back.
+1. You type a request in the TUI.
+2. The remote AI decides it needs your laptop's hardware.
+3. It sends the command(s) to your running bridge over WebSocket.
+4. Your bridge runs the command locally with full privileges.
+5. Output (stdout + stderr) is streamed back instantly to the TUI.
+6. The AI can chain multiple commands using real data from your machine.
 
-### 3. Communication Protocol
+## 4. What Runs Where
 
-- WebSocket (currently planned on port 8765 on the VPS side).
-- JSON messages.
-- Main message types:
-  - `capabilities` (bridge tells TUI what it can do)
-  - `command` (TUI tells bridge to run something)
-  - `output` (streaming stdout/stderr from bridge)
-  - `result` (final exit code)
+| Component              | Location          | What it does                          |
+|------------------------|-------------------|---------------------------------------|
+| LLM + Planning         | VPS (Docker)      | Thinking, planning, deciding what to run |
+| Textual TUI            | VPS               | Your chat interface                   |
+| Bridge Binary          | Your Laptop       | Connects to TUI, runs local commands  |
+| Wireless Tools         | Your Laptop       | aircrack-ng, hcxdumptool, etc.        |
+| Physical Adapters      | Your Laptop       | Your actual WiFi/Bluetooth/NFC cards  |
 
-## User Flow (End-to-End)
+## 5. Connection Model
 
-1. You start the bridge on your laptop:
-   ```bash
-   ./kali-bridge --connect 188.166.150.41:8765 --token abc123
-   ```
-
-2. The bridge connects to the remote TUI and registers itself.
-
-3. In the TUI (browser), you type a command that needs hardware:
-   > "Scan for Bluetooth devices using my local adapter"
-
-4. The remote AI creates a plan and realizes it needs local execution.
-
-5. The AI sends a `command` message over the WebSocket to your bridge.
-
-6. Your bridge runs the appropriate local command (e.g. `hcitool scan` or bettercap equivalent).
-
-7. Output is streamed back in real time to the TUI.
-
-8. The AI can now continue with the next step using the real data from your hardware.
-
-## Security Model
-
-- Bridge only makes outbound connections.
-- Token-based authentication.
-- All commands from the AI are visible to you in the TUI before execution (future feature).
-- The bridge never initiates connections back to your VPS except for the control channel.
-
-## Current State (as of May 2026)
-
-- Basic connection + capabilities skeleton exists.
-- Full command execution, hardware modules, and TUI integration are still in development.
-
-## Future Enhancements
-
-- Automatic hardware discovery on the bridge side.
-- Secure command allow-list on the bridge.
-- Better UI in the TUI showing "Local hardware bridge connected" status.
-- Support for multiple bridges (e.g. one on laptop, one on a dedicated WiFi rig).
+- The bridge always connects **outbound** to the VPS (you never open ports on your laptop).
+- Authentication via token.
+- Once connected, the TUI knows a bridge is available and can use it for hardware tasks.
