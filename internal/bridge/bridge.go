@@ -1,10 +1,14 @@
 package bridge
 
 import (
+	"bufio"
+	"context"
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/url"
 	"os"
+	"os/exec"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -22,6 +26,30 @@ type Bridge struct {
 	config Config
 	conn   *websocket.Conn
 	done   chan struct{}
+}
+
+// Message types (simple protocol)
+type Message struct {
+	Type    string          `json:"type"`
+	Payload json.RawMessage `json:"payload"`
+}
+
+type CommandPayload struct {
+	ID         string   `json:"id"`
+	Command    string   `json:"command"`
+	Args       []string `json:"args"`
+	Privileged bool     `json:"privileged"`
+}
+
+type OutputPayload struct {
+	ID     string `json:"id"`
+	Stream string `json:"stream"` // "stdout" or "stderr"
+	Data   string `json:"data"`
+}
+
+type ResultPayload struct {
+	ID       string `json:"id"`
+	ExitCode int    `json:"exit_code"`
 }
 
 // New creates a new Bridge instance
@@ -67,13 +95,16 @@ func (b *Bridge) Run() error {
 			break
 		}
 
-		// TODO: Handle incoming commands from TUI
-		log.Printf("Received message: %s", message)
+	var msg Message
+		if err := json.Unmarshal(message, &msg); err != nil {
+			log.Printf("Bad message: %s", message)
+			continue
+		}
 
-		// Example: echo back for now
-		if err := conn.WriteMessage(websocket.TextMessage, message); err != nil {
-			log.Printf("Write error: %v", err)
-			break
+		if msg.Type == "command" {
+			var cmd CommandPayload
+			json.Unmarshal(msg.Payload, &cmd)
+			go b.handleCommand(cmd)
 		}
 	}
 
@@ -95,6 +126,79 @@ func (b *Bridge) sendCapabilities() error {
 	return b.conn.WriteJSON(caps)
 }
 
+// handleCommand runs a command and streams output back
+func (b *Bridge) handleCommand(cmd CommandPayload) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	fullCmd := append([]string{cmd.Command}, cmd.Args...)
+	log.Printf("Executing: %v (privileged=%v)", fullCmd, cmd.Privileged)
+
+	var execCmd *exec.Cmd
+	if cmd.Privileged {
+		execCmd = exec.CommandContext(ctx, "sudo", fullCmd...)
+	} else {
+		execCmd = exec.CommandContext(ctx, cmd.Command, cmd.Args...)
+	}
+
+	stdoutPipe, _ := execCmd.StdoutPipe()
+	stderrPipe, _ := execCmd.StderrPipe()
+
+	if err := execCmd.Start(); err != nil {
+		b.sendError(cmd.ID, err.Error())
+		return
+	}
+
+	// Stream stdout
+	go b.streamOutput(cmd.ID, "stdout", stdoutPipe)
+	// Stream stderr
+	go b.streamOutput(cmd.ID, "stderr", stderrPipe)
+
+	err := execCmd.Wait()
+
+	exitCode := 0
+	if err != nil {
+		if exitErr, ok := err.(*exec.ExitError); ok {
+			exitCode = exitErr.ExitCode()
+		} else {
+			exitCode = 1
+		}
+	}
+
+	// Send final result
+	result := ResultPayload{
+		ID:       cmd.ID,
+		ExitCode: exitCode,
+	}
+	b.conn.WriteJSON(map[string]interface{}{
+		"type":    "result",
+		"payload": result,
+	})
+}
+
+func (b *Bridge) streamOutput(id string, stream string, pipe io.ReadCloser) {
+	defer pipe.Close()
+	scanner := bufio.NewScanner(pipe)
+	for scanner.Scan() {
+		payload := OutputPayload{
+			ID:     id,
+			Stream: stream,
+			Data:   scanner.Text() + "\n",
+		}
+		b.conn.WriteJSON(map[string]interface{}{
+			"type":    "output",
+			"payload": payload,
+		})
+	}
+}
+
+func (b *Bridge) sendError(id string, msg string) {
+	b.conn.WriteJSON(map[string]interface{}{
+		"type": "error",
+		"payload": map[string]string{"id": id, "message": msg},
+	})
+}
+
 // Close shuts down the bridge
 func (b *Bridge) Close() error {
 	close(b.done)
@@ -103,6 +207,3 @@ func (b *Bridge) Close() error {
 	}
 	return nil
 }
-
-// TODO: Implement real hardware detection and command execution
-// This will live in internal/hardware/
