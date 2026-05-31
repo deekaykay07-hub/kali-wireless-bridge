@@ -2,64 +2,72 @@
 
 **Local Hardware Bridge** for the [Kali Wireless Expert TUI](https://github.com/deekaykay07-hub/kali-mistral-tui).
 
-This small agent allows the remote AI-powered TUI (running on a VPS) to securely execute wireless commands and access physical hardware on *your* local machine (WiFi adapters in monitor mode, Bluetooth, NFC readers, SDR, etc.).
+This agent allows the remote AI (running on a VPS) to execute commands and access wireless hardware on **your local machine**.
+
+**Current Priority: Windows 11 support first**, Linux support coming after.
 
 ## Why This Exists
 
-Wireless security work (monitor mode, packet injection, Bluetooth LE, NFC cloning, etc.) requires direct access to local radio hardware. Running everything in a remote container makes this impossible.
+The smart AI lives on a remote VPS. But real wireless work (monitor mode, Bluetooth, NFC, etc.) requires hardware that is physically plugged into *your* computer. This bridge bridges that gap.
 
-This bridge solves that by letting the smart remote AI plan and orchestrate attacks, while actual execution happens on your machine where the hardware lives.
+## Current Status (Windows Focus)
 
-## System Architecture & Flow
+- The bridge runs on Windows 11.
+- It can connect to the remote TUI and execute commands.
+- Basic hardware detection for Windows is in progress.
+- Full monitor mode + injection on Windows is limited by the OS and drivers (we'll add best-effort support + clear warnings).
 
-### High-Level Overview
+## How It Works (High Level)
 
-- **AI Brain (Remote)**: Runs on your VPS in the `kali-mistral-tui` container. This is where the LLM (Mistral / Qwen2.5 etc.) lives and does all the thinking and planning.
-- **Bridge Agent (Local)**: A small program you run on your laptop. It has direct access to your physical wireless hardware.
-- **Communication**: The local bridge connects outbound to the remote TUI over WebSocket.
+1. You run the small `kali-bridge.exe` on your Windows laptop.
+2. It connects outbound to your remote TUI.
+3. When the AI needs to use your local WiFi/Bluetooth hardware, it sends commands to the bridge.
+4. The bridge runs them on your machine and streams the results back.
 
-You do **NOT** need to run any AI/Ollama on your local machine.
+You do **not** need Ollama or any AI running locally.
 
-### Detailed Flow (When You Give a Command)
+## Building on Windows (Easy)
 
-1. You open the TUI in your browser (`http://your-vps-ip:7681`).
-2. You type a request, e.g.:
-   > "Put my WiFi card into monitor mode and scan for networks"
-3. The remote AI (in the container) receives your message and creates a plan.
-4. When the plan requires real hardware (monitor mode, packet injection, Bluetooth scan, etc.), the AI sends a command over the WebSocket to your local bridge.
-5. The bridge on your laptop receives the command, executes it locally using your actual hardware, and streams the output back in real time.
-6. The remote AI sees the results and continues the plan (or asks you for next steps).
+### Requirements
+- Go 1.22+ installed (https://go.dev/dl/)
+- Git (optional but recommended)
 
-This gives you the best of both worlds:
-- Powerful AI + good models on the VPS (where resources are better)
-- Real hardware access on your laptop
+### Build Steps (Command Prompt or PowerShell)
 
-## How to Use (Planned Flow)
+```powershell
+# 1. Clone the repo
+git clone https://github.com/deekaykay07-hub/kali-wireless-bridge.git
+cd kali-wireless-bridge
 
-```bash
-# On your laptop
-./kali-bridge --connect your-vps-ip:8765 --token <token-from-tui>
+# 2. Build for Windows
+go build -o kali-bridge.exe ./cmd/bridge
+
+# Or cross-compile if needed
+$env:GOOS = "windows"; $env:GOARCH = "amd64"; go build -o kali-bridge.exe ./cmd/bridge
 ```
 
-The TUI will show when a bridge is connected and will automatically route hardware-dependent commands to it.
+This will create `kali-bridge.exe`.
 
-## Current Status
+## Running on Windows
 
-This project is in early development. The core connection skeleton exists, but full command execution, hardware detection, and integration with the TUI are still being built.
+```powershell
+# Basic run (replace with your VPS IP and token)
+.\kali-bridge.exe --connect 188.166.150.41:8765 --token YOUR_TOKEN
 
-See the `internal/` folders for the current structure.
-
-## Project Structure
-
+# Run as Administrator if you need to do privileged wireless operations
+# Right-click PowerShell → "Run as Administrator" then run the command above
 ```
-kali-wireless-bridge/
-├── cmd/bridge/main.go
-├── internal/
-│   ├── bridge/          # WebSocket connection & protocol
-│   └── hardware/        # Local wireless detection & execution
-├── internal/protocol/ # Message types
-└── Makefile
-```
+
+## Getting a Token
+
+In the remote TUI (browser), there will be a way to generate a connection token for your bridge (planned feature: `/bridge-token` or a button in settings).
+
+## Next Steps (Being Built)
+
+- Better Windows wireless interface detection
+- Streaming command execution (already partially implemented)
+- Status indicator in the TUI showing when your bridge is connected
+- Linux version (after solid Windows support)
 
 ## License
 
