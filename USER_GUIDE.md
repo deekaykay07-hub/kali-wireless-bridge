@@ -1,65 +1,60 @@
-# User Guide: Kali Wireless Bridge
+# User Guide – Windows 11 First
 
-This guide explains exactly what the final experience will feel like and what you need to do on your laptop.
+## Current Reality (as of now)
 
-## What the Finished System Looks Like
+We are building this bridge with **Windows 11 support as the top priority**. Linux support will come after.
 
-1. You open your browser and go to your TUI:
-   `http://your-vps-ip:7681`
+**Important Limitation on Windows:**
+Real monitor mode + packet injection is much harder on Windows than on Linux. Many cheap adapters won't work well. The bridge will still let you run commands and do a lot of useful work (scanning, Bluetooth, etc.), but advanced injection may be limited.
 
-2. You see a normal chat interface with a very smart wireless expert AI.
+## What You Need to Do on Your Windows 11 Laptop
 
-3. At the top or side, you see a clear indicator:
-   **✅ Local Bridge Connected** (YourLaptopName)
-   or
-   **⚠️ No local bridge connected** (Hardware commands will be limited)
+### 1. Install Go (if you don't have it)
 
-4. When you ask the AI to do something that needs your hardware (monitor mode, Bluetooth scan, etc.), it will:
-   - Make a clear plan
-   - Send the actual commands to your laptop
-   - Show you the real output from your machine in the chat
+Download from: https://go.dev/dl/
 
-Example conversation:
-> You: Put my adapter in monitor mode and scan for networks
-> AI: [Plan shown in the Planning Panel]
-> AI: Running on your local machine...
-> [Real output from airodump-ng appears live in the chat]
+### 2. Build the Bridge
 
-## What You Need to Do on Your Laptop (Step by Step)
+Open PowerShell or Command Prompt and run:
 
-### 1. Build the Bridge (One-time)
-
-On your laptop (preferably Linux for best wireless support):
-
-```bash
+```powershell
 git clone https://github.com/deekaykay07-hub/kali-wireless-bridge.git
 cd kali-wireless-bridge
-make build
+
+go build -o kali-bridge.exe ./cmd/bridge
 ```
 
-This creates the `kali-bridge` binary.
+This creates `kali-bridge.exe` in the folder.
 
-### 2. Get a Token from the TUI
+### 3. Get a Token from the TUI
 
-- In the TUI, there will be a command or button like `/enable-bridge` or a settings panel.
-- It will generate a one-time token for your bridge.
+In your remote TUI (browser), generate a bridge token (this feature is being added).
 
-### 3. Start the Bridge
+### 4. Run the Bridge
 
-```bash
-sudo ./kali-bridge --connect your-vps-ip:8765 --token YOUR_TOKEN_HERE
+```powershell
+# Normal run
+.\kali-bridge.exe --connect YOUR_VPS_IP:8765 --token YOUR_TOKEN
+
+# Recommended: Run as Administrator for better wireless access
+# Right-click PowerShell → "Run as Administrator"
 ```
 
-- Run it with `sudo` when you need monitor mode / injection.
-- Leave it running in a terminal while you use the TUI.
+Leave the window open while using the TUI.
 
-### 4. Use the TUI Normally
+## What the Experience Will Feel Like (Once Fully Built)
 
-The AI will automatically use your local hardware when needed. You don't have to do anything special in the chat.
+- You chat normally with the AI in the browser.
+- When the AI needs your laptop's hardware, it will automatically send commands to your bridge.
+- You will see real output from your Windows machine appear in the chat.
+- A status indicator will show "Bridge Connected" in the TUI.
 
-## Important Notes
+## Future Improvements
 
-- The bridge only runs when **you** start it on your laptop.
-- It makes an outbound connection only (safe for most firewalls).
-- You can stop it anytime by pressing Ctrl+C.
-- For real monitor mode work, Linux is strongly recommended on the laptop side.
+- Better Windows wireless detection
+- Support for Npcap (for advanced packet work)
+- Linux version
+
+## Need Help Right Now?
+
+Run the bridge with `--help` to see current options.
