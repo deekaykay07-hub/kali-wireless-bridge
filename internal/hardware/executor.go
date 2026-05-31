@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"os/exec"
+	"strings"
 )
 
 // CommandResult represents output from an executed command
