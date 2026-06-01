@@ -60,10 +60,23 @@ Use `/show-token` to display your current token anytime.
 - `cmd/bridge/main.go` — The actual bridge (includes automatic device inventory)
 - `INVENTORY_UPDATE.md` — Technical details about the hardware push feature
 - `README-ONE-COMMAND.md` — Detailed one-command instructions
+- `colab/` — Colab notebooks for running powerful remote models (e.g. unrestricted 15B on T4)
+
+## Remote LLM Backend via Colab
+
+For using strong "unrestricted" models (15B class) that won't run locally due to VRAM limits:
+
+- See `colab/kali_ollama_t4_unrestricted_15b_full.ipynb`
+- Runs the `yqkm/Unrestricted-Knowledge-Will-Not-Refuse-15B-Q4_K_M-GGUF` model on Google Colab T4 GPU
+- Exposes it publicly via ngrok so your TUI (on VPS, droplet, or anywhere) can connect to it as `OLLAMA_HOST`
+- Also useful with `docker-compose.remote-colab.yml` in the TUI repo
+
+This pairs perfectly with the bridge: heavy reasoning in Colab, real hardware execution via this bridge on your Windows machine.
 
 ## Related Projects
 
 - [Kali Wireless TUI](https://github.com/deekaykay07-hub/kali-mistral-tui) — The main interface
+- [kali-colab-agent](https://github.com/deekaykay07-hub/kali-mistral-tui) (supporting notebooks)
 
 ## License
 
